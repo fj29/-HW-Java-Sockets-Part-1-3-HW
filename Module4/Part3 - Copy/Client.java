@@ -4,100 +4,51 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.util.Scanner;
 
 public class Client {
 
-    Socket server = null;
-    ObjectOutputStream out = null;
-    ObjectInputStream in = null;
-    final String ipAddressPattern = "connect\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d{3,5})";
-    final String localhostPattern = "connect\\s+(localhost:\\d{3,5})";
-    boolean isRunning = false;
+    private Socket server = null;
+    private ObjectOutputStream out = null;
+    private ObjectInputStream in = null;
+    private final String ipAddressPattern = "connect\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d{3,5})";
+    private final String localhostPattern = "connect\\s+(localhost:\\d{3,5})";
+    private boolean isRunning = false;
     private Thread inputThread;
     private Thread fromServerThread;
 
     public Client() {
-        System.out.println("");
+        System.out.println("Client initialized");
     }
 
     public boolean isConnected() {
-        if (server == null) {
-            return false;
-        }
-        // https://stackoverflow.com/a/10241044
-        // Note: these check the client's end of the socket connect; therefore they
-        // don't really help determine
-        // if the server had a problem
-        return server.isConnected() && !server.isClosed() && !server.isInputShutdown() && !server.isOutputShutdown();
-
+        return server != null && server.isConnected() && !server.isClosed() && !server.isInputShutdown() && !server.isOutputShutdown();
     }
 
-    /**
-     * Takes an ip address and a port to attempt a socket connection to a server.
-     * 
-     * @param address
-     * @param port
-     * @return true if connection was successful
-     */
+    
     private boolean connect(String address, int port) {
         try {
             server = new Socket(address, port);
-            // channel to send to server
             out = new ObjectOutputStream(server.getOutputStream());
-            // channel to listen to server
             in = new ObjectInputStream(server.getInputStream());
             System.out.println("Client connected");
             listenForServerMessage();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
         return isConnected();
     }
 
-    /**
-     * <p>
-     * Check if the string contains the <i>connect</i> command
-     * followed by an ip address and port or localhost and port.
-     * </p>
-     * <p>
-     * Example format: 123.123.123:3000
-     * </p>
-     * <p>
-     * Example format: localhost:3000
-     * </p>
-     * https://www.w3schools.com/java/java_regex.asp
-     * 
-     * @param text
-     * @return
-     */
     private boolean isConnection(String text) {
-        // https://www.w3schools.com/java/java_regex.asp
-        return text.matches(ipAddressPattern)
-                || text.matches(localhostPattern);
+        return text.matches(ipAddressPattern) || text.matches(localhostPattern);
     }
 
     private boolean isQuit(String text) {
         return text.equalsIgnoreCase("quit");
     }
 
-    /**
-     * Controller for handling various text commands.
-     * <p>
-     * Add more here as needed
-     * </p>
-     * 
-     * @param text
-     * @return true if a text was a command or triggered a command
-     */
     private boolean processCommand(String text) {
         if (isConnection(text)) {
-            // replaces multiple spaces with single space
-            // splits on the space after connect (gives us host and port)
-            // splits on : to get host as index 0 and port as index 1
             String[] parts = text.trim().replaceAll(" +", " ").split(" ")[1].split(":");
             connect(parts[0].trim(), Integer.parseInt(parts[1].trim()));
             return true;
@@ -113,8 +64,8 @@ public class Client {
             @Override
             public void run() {
                 System.out.println("Listening for input");
-                try (Scanner si = new Scanner(System.in);) {
-                    String line = "";
+                try (Scanner si = new Scanner(System.in)) {
+                    String line;
                     isRunning = true;
                     while (isRunning) {
                         try {
@@ -123,7 +74,6 @@ public class Client {
                             if (!processCommand(line)) {
                                 if (isConnected()) {
                                     out.writeObject(line);
-
                                 } else {
                                     System.out.println("Not connected to server");
                                 }
@@ -150,11 +100,8 @@ public class Client {
             public void run() {
                 try {
                     String fromServer;
-
-                    // while we're connected, listen for strings from server
                     while (!server.isClosed() && !server.isInputShutdown()
-                            && (fromServer = (String) in.readObject().toString()) != null) {
-
+                            && (fromServer = (String) in.readObject()) != null) {
                         System.out.println(fromServer);
                     }
                     System.out.println("Loop exited");
@@ -171,8 +118,7 @@ public class Client {
                 }
             }
         };
-        fromServerThread.start();// start the thread
-
+        fromServerThread.start();
     }
 
     public void start() throws IOException {
@@ -194,28 +140,69 @@ public class Client {
         }
         try {
             System.out.println("Closing output stream");
-            out.close();
+            if (out != null) {
+                out.close();
+            }
         } catch (NullPointerException ne) {
-            System.out.println("Server was never opened so this exception is ok");
+            System.out.println("Server was never opened, so this exception is ok");
         } catch (Exception e) {
             e.printStackTrace();
         }
         try {
             System.out.println("Closing input stream");
-            in.close();
+            if (in != null) {
+                in.close();
+            }
         } catch (NullPointerException ne) {
-            System.out.println("Server was never opened so this exception is ok");
+            System.out.println("Server was never opened, so this exception is ok");
         } catch (Exception e) {
             e.printStackTrace();
         }
         try {
             System.out.println("Closing connection");
-            server.close();
+            if (server != null) {
+                server.close();
+            }
             System.out.println("Closed socket");
         } catch (IOException e) {
             e.printStackTrace();
         } catch (NullPointerException ne) {
-            System.out.println("Server was never opened so this exception is ok");
+            System.out.println("Server was never opened, so this exception is ok");
+        }
+    }
+
+    //UCID: FJ28
+    //DATE: 2/21/2024
+
+    public void startNumberGuesser() throws IOException {
+        if (isConnected()) {
+            out.writeObject("/start");
+        } else {
+            System.out.println("Not connected to the server");
+        }
+    }
+
+    public void stopNumberGuesser() throws IOException {
+        if (isConnected()) {
+            out.writeObject("/stop");
+        } else {
+            System.out.println("Not connected to the server");
+        }
+    }
+
+    public void makeGuess(int guess) throws IOException {
+        if (isConnected()) {
+            out.writeObject("/guess " + guess);
+        } else {
+            System.out.println("Not connected to the server");
+        }
+    }
+
+    public void flipCoin() throws IOException {
+        if (isConnected()) {
+            out.writeObject("/flip");
+        } else {
+            System.out.println("Not connected to the server");
         }
     }
 
@@ -223,11 +210,19 @@ public class Client {
         Client client = new Client();
 
         try {
-            // if start is private, it's valid here since this main is part of the class
             client.start();
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
 
+        try {
+            client.startNumberGuesser();
+            client.stopNumberGuesser();
+            int guess = 5; // Enter the guess value here
+            client.makeGuess(guess);
+            client.flipCoin();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
